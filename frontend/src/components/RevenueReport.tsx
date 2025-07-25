@@ -1,20 +1,16 @@
 import { DollarSign } from "lucide-react";
 
 interface RevenueReportProps {
-  show: boolean;
   revenueFilter: { period: string };
   onFilterChange: (filter: { period: string }) => void;
   revenueData: { total: number; laser: number; cera: number; count: number };
 }
 
 const RevenueReport = ({ 
-  show, 
   revenueFilter, 
   onFilterChange, 
   revenueData 
 }: RevenueReportProps) => {
-  if (!show) return null;
-
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-6 mb-6">
       <div className="flex items-center gap-2 mb-4">

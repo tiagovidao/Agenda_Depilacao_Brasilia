@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { DollarSign, X } from "lucide-react";
 import Calendar from "./components/Calendar";
 import TimeSlots from "./components/TimeSlots";
 import AppointmentList from "./components/AppointmentList";
 import RevenueReport from "./components/RevenueReport";
+import AppointmentModal from "./components/AppointmentModal";
 import { type Appointment } from "./types/appointment";
 import Login from "./components/Login";
 import { supabase } from "./lib/supabase";
@@ -13,7 +13,6 @@ const App = () => {
   const [selDate, setSelDate] = useState<Date | null>(null);
   const [apts, setApts] = useState<Record<string, Appointment[]>>({});
   const [showModal, setShowModal] = useState(false);
-  const [showRev, setShowRev] = useState(false);
   const [selTimes, setSelTimes] = useState<string[]>([]);
   const [form, setForm] = useState({ type: "", clientName: "", value: "", observations: "" });
   const [revFilter, setRevFilter] = useState({ period: "Dia" });
@@ -21,8 +20,8 @@ const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [currentView, setCurrentView] = useState<'appointments' | 'revenue'>('appointments');
 
-  // Função para formatar valor em moeda
   const fmtCurr = (v: string) => {
     if (!v) return '';
     const digits = v.replace(/\D/g, '');
@@ -31,19 +30,15 @@ const App = () => {
     return number.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
   
-  // Função para converter de moeda para número
   const parseCurr = (v: string) => parseFloat(v.replace(/[R$\s.]/g, '').replace(',', '.')) || 0;
 
-  // Gerar slots de horários
   const timeSlots = Array.from({length: 28}, (_, i) => {
     const h = Math.floor(i/2) + 7;
     return `${h.toString().padStart(2,'0')}:${i % 2 ? '30' : '00'}`;
   });
 
-  // Formatar chave de data
   const fmtDateKey = (d: Date) => d.toISOString().split('T')[0];
 
-  // Alternar seleção de horário
   const toggleTime = (t: string) => {
     if (selDate) {
       const key = fmtDateKey(selDate);
@@ -53,7 +48,6 @@ const App = () => {
     setSelTimes(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t].sort());
   };
 
-  // Abrir modal para novo agendamento
   const openNewApt = () => {
     if (!selDate) return alert('Selecione uma data primeiro');
     if (selTimes.length === 0) return alert('Selecione pelo menos um horário');
@@ -61,7 +55,6 @@ const App = () => {
     setShowModal(true);
   };
 
-  // Fechar modal
   const closeModal = () => {
     setShowModal(false);
     setForm({ type: "", clientName: "", value: "", observations: "" });
@@ -69,7 +62,6 @@ const App = () => {
     setEditingAppointment(null);
   };
 
-  // Carregar agendamentos do Supabase
   const loadAppointments = async () => {
     setIsLoading(true);
     try {
@@ -80,7 +72,6 @@ const App = () => {
       
       if (error) throw error;
 
-      // Organizar por data
       const aptsByDate: Record<string, Appointment[]> = {};
       data.forEach(appointment => {
         const dateKey = appointment.date.split('T')[0];
@@ -99,7 +90,6 @@ const App = () => {
     }
   };
 
-  // Confirmar agendamento (criação ou edição)
   const confirmApt = async () => {
     if (!form.type || !form.clientName || !form.value || !selDate) 
       return alert('Preencha todos os campos obrigatórios');
@@ -108,17 +98,15 @@ const App = () => {
       id: editingAppointment?.id || Date.now(),
       times: selTimes,
       type: form.type,
-      client_name: form.clientName,   // Map form field to snake_case
+      client_name: form.clientName,
       value: parseCurr(form.value),
       observations: form.observations,
       date: selDate.toISOString(),
-      created_by: currentUser         // Map to snake_case
+      created_by: currentUser
     };
-
 
     try {
       if (editingAppointment) {
-        // Atualizar no Supabase
         const { error } = await supabase
           .from('appointments')
           .update(newApt)
@@ -126,7 +114,6 @@ const App = () => {
         
         if (error) throw error;
       } else {
-        // Inserir no Supabase
         const { error } = await supabase
           .from('appointments')
           .insert([newApt]);
@@ -134,7 +121,6 @@ const App = () => {
         if (error) throw error;
       }
       
-      // Recarregar dados
       await loadAppointments();
       closeModal();
     } catch (error) {
@@ -143,7 +129,6 @@ const App = () => {
     }
   };
 
-  // Calcular receitas
   const calcRev = () => {
     const refDate = selDate || new Date();
     const ref = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
@@ -177,7 +162,6 @@ const App = () => {
     };
   };
 
-  // Navegar entre meses
   const navMonth = (dir: number) => {
     const newMonth = new Date(currentMonth);
     newMonth.setMonth(currentMonth.getMonth() + dir);
@@ -186,12 +170,11 @@ const App = () => {
     setSelTimes([]);
   };
 
-  // Editar agendamento
   const handleEditAppointment = (appointment: Appointment) => {
     setEditingAppointment(appointment);
     setForm({
       type: appointment.type,
-      clientName: appointment.client_name,  // Map snake_case to form field
+      clientName: appointment.client_name,
       value: appointment.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
       observations: appointment.observations
     });
@@ -199,7 +182,6 @@ const App = () => {
     setShowModal(true);
   };
 
-  // Excluir agendamento
   const handleDeleteAppointment = async (appointmentId: number) => {
     if (!selDate || !window.confirm('Tem certeza que deseja excluir este agendamento?')) return;
     
@@ -211,7 +193,6 @@ const App = () => {
       
       if (error) throw error;
       
-      // Recarregar dados
       await loadAppointments();
     } catch (error) {
       console.error('Erro ao excluir agendamento:', error);
@@ -219,14 +200,12 @@ const App = () => {
     }
   };
 
-  // Efeito para carregar agendamentos quando autenticado
   useEffect(() => {
     if (isAuthenticated) {
       loadAppointments();
     }
   }, [isAuthenticated]);
 
-  // Agendamentos da data selecionada
   const selDateAppts = selDate ? apts[fmtDateKey(selDate)] || [] : [];
   const rev = calcRev();
 
@@ -237,7 +216,7 @@ const App = () => {
     }} />;
   }
 
-  return (
+   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 space-y-4 sm:space-y-0">
@@ -246,17 +225,10 @@ const App = () => {
             <p className="text-gray-600">Sistema de Agendamento</p>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-center sm:text-right">
-            <span className="text-gray-700 font-medium mb-2 sm:mb-0">Usuário: {currentUser}</span>
-            <button
-              onClick={() => setIsAuthenticated(false)}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-            >
-              Sair
-            </button>
+          <div className="text-center sm:text-right">
+            <span className="text-gray-700 font-medium">Usuário: {currentUser}</span>
           </div>
         </div>
-
 
         {isLoading && (
           <div className="text-center py-8">
@@ -275,21 +247,6 @@ const App = () => {
               appointments={apts}
             />
 
-            <div className="flex justify-center mb-4">
-              <button onClick={() => setShowRev(!showRev)} 
-                className="flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold shadow-md transition-colors">
-                <DollarSign size={20} />
-                {showRev ? 'Ocultar Receitas' : 'Ver Receitas'}
-              </button>
-            </div>
-
-            <RevenueReport 
-              show={showRev}
-              revenueFilter={revFilter}
-              onFilterChange={setRevFilter}
-              revenueData={rev}
-            />
-
             {selDate && (
               <TimeSlots 
                 date={selDate}
@@ -301,7 +258,34 @@ const App = () => {
               />
             )}
 
-            {selDate && selDateAppts.length > 0 && (
+            {selDate && (
+              <div className="flex justify-center mb-4">
+                <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden shadow-sm">
+                  <button
+                    onClick={() => setCurrentView('appointments')}
+                    className={`px-4 py-2 text-sm font-medium ${
+                      currentView === 'appointments'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Agendamentos
+                  </button>
+                  <button
+                    onClick={() => setCurrentView('revenue')}
+                    className={`px-4 py-2 text-sm font-medium ${
+                      currentView === 'revenue'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Receitas
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {selDate && currentView === 'appointments' && (
               <AppointmentList 
                 date={selDate}
                 appointments={selDateAppts}
@@ -309,101 +293,39 @@ const App = () => {
                 onDelete={handleDeleteAppointment}
               />
             )}
+
+            {selDate && currentView === 'revenue' && (
+              <RevenueReport 
+                revenueFilter={revFilter}
+                onFilterChange={setRevFilter}
+                revenueData={rev}
+              />
+            )}
           </>
         )}
 
-        {showModal && (
-          <div className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-opacity-30 backdrop-blur-md">
-            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold">
-                  {editingAppointment ? "Editar Agendamento" : "Novo Agendamento"}
-                </h3>
-                <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
-                  <select 
-                    value={form.type} 
-                    onChange={e => setForm(p => ({...p, type: e.target.value}))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500" 
-                    required
-                  >
-                    <option value="">Selecione o tipo</option>
-                    <option value="Laser">Laser</option>
-                    <option value="Cera">Cera</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Cliente *</label>
-                  <input 
-                    type="text" 
-                    value={form.clientName} 
-                    onChange={e => setForm(p => ({...p, clientName: e.target.value}))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500"
-                    placeholder="Digite o nome do cliente" 
-                    required 
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Valor *</label>
-                  <input 
-                    type="text" 
-                    value={form.value}
-                    onChange={e => setForm(p => ({...p, value: fmtCurr(e.target.value)}))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500"
-                    placeholder="R$ 0,00" 
-                    required 
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Observações</label>
-                  <textarea 
-                    value={form.observations} 
-                    rows={3}
-                    onChange={e => setForm(p => ({...p, observations: e.target.value}))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500"
-                    placeholder="Observações adicionais (opcional)" 
-                  />
-                </div>
-                
-                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                  <p className="text-sm text-gray-600">
-                    <strong>Horários:</strong> {selTimes.join(', ')}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    <strong>Data:</strong> {selDate?.toLocaleDateString('pt-BR')}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    <strong>Agendado por:</strong> {currentUser}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex gap-3 mt-6">
-                <button 
-                  onClick={closeModal}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={confirmApt}
-                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 font-semibold transition-colors"
-                >
-                  {editingAppointment ? "Atualizar" : "Confirmar"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AppointmentModal 
+          showModal={showModal}
+          closeModal={closeModal}
+          form={form}
+          setForm={setForm}
+          selTimes={selTimes}
+          selDate={selDate}
+          currentUser={currentUser}
+          editingAppointment={editingAppointment}
+          confirmApt={confirmApt}
+          fmtCurr={fmtCurr}
+        />
+
+         <div className="flex justify-center mt-12">
+           <button
+             onClick={() => setIsAuthenticated(false)}
+             className="w-full sm:w-auto px-8 py-4 text-lg bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors font-bold max-w-xs sm:max-w-none"
+           >
+             Sair
+           </button>
+         </div>
+
       </div>
     </div>
   );
