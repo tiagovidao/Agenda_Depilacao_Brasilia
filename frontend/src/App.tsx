@@ -20,6 +20,7 @@ const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [currentView, setCurrentView] = useState<'appointments' | 'revenue'>('appointments');
 
   const fmtCurr = (v: string) => {
@@ -56,6 +57,7 @@ const App = () => {
   };
 
   const closeModal = () => {
+    if (isSaving) return; // Previne fechar durante o salvamento
     setShowModal(false);
     setForm({ type: "", clientName: "", value: "", observations: "" });
     setSelTimes([]);
@@ -94,6 +96,8 @@ const App = () => {
     if (!form.type || !form.clientName || !form.value || !selDate) 
       return alert('Preencha todos os campos obrigatórios');
 
+    setIsSaving(true); // Inicia o loading
+
     const newApt: Appointment = {
       id: editingAppointment?.id || Date.now(),
       times: selTimes,
@@ -126,6 +130,8 @@ const App = () => {
     } catch (error) {
       console.error('Erro ao salvar agendamento:', error);
       alert('Erro ao salvar agendamento');
+    } finally {
+      setIsSaving(false); // Finaliza o loading
     }
   };
 
@@ -179,6 +185,11 @@ const App = () => {
       observations: appointment.observations
     });
     setSelTimes([...appointment.times]);
+    
+    // Definir a data selecionada baseada no agendamento
+    const appointmentDate = new Date(appointment.date);
+    setSelDate(appointmentDate);
+    
     setShowModal(true);
   };
 
@@ -310,11 +321,15 @@ const App = () => {
           form={form}
           setForm={setForm}
           selTimes={selTimes}
+          setSelTimes={setSelTimes}
           selDate={selDate}
           currentUser={currentUser}
           editingAppointment={editingAppointment}
           confirmApt={confirmApt}
           fmtCurr={fmtCurr}
+          appointments={apts}
+          timeSlots={timeSlots}
+          isSaving={isSaving}
         />
 
          <div className="flex justify-center mt-12">
