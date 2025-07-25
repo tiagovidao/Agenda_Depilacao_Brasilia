@@ -64,7 +64,7 @@ const TimeSlots = ({
               </button>
               {booked && aptInfo && (
                 <div className="mt-1 text-xs text-center text-gray-600 font-medium">
-                  {aptInfo.clientName}
+                  {aptInfo.client_name}
                 </div>
               )}
             </div>

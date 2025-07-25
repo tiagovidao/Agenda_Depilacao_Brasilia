@@ -1,12 +1,14 @@
-import { useState } from "react";
-import {  DollarSign, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { DollarSign, X } from "lucide-react";
 import Calendar from "./components/Calendar";
 import TimeSlots from "./components/TimeSlots";
 import AppointmentList from "./components/AppointmentList";
 import RevenueReport from "./components/RevenueReport";
 import { type Appointment } from "./types/appointment";
+import Login from "./components/Login";
+import { supabase } from "./lib/supabase";
 
-const SistemaAgendamento = () => {
+const App = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selDate, setSelDate] = useState<Date | null>(null);
   const [apts, setApts] = useState<Record<string, Appointment[]>>({});
@@ -16,6 +18,9 @@ const SistemaAgendamento = () => {
   const [form, setForm] = useState({ type: "", clientName: "", value: "", observations: "" });
   const [revFilter, setRevFilter] = useState({ period: "Dia" });
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   // Função para formatar valor em moeda
   const fmtCurr = (v: string) => {
@@ -64,34 +69,78 @@ const SistemaAgendamento = () => {
     setEditingAppointment(null);
   };
 
+  // Carregar agendamentos do Supabase
+  const loadAppointments = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .order('date', { ascending: true });
+      
+      if (error) throw error;
+
+      // Organizar por data
+      const aptsByDate: Record<string, Appointment[]> = {};
+      data.forEach(appointment => {
+        const dateKey = appointment.date.split('T')[0];
+        if (!aptsByDate[dateKey]) {
+          aptsByDate[dateKey] = [];
+        }
+        aptsByDate[dateKey].push(appointment);
+      });
+      
+      setApts(aptsByDate);
+    } catch (error) {
+      console.error('Erro ao carregar agendamentos:', error);
+      alert('Erro ao carregar agendamentos');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Confirmar agendamento (criação ou edição)
-  const confirmApt = () => {
+  const confirmApt = async () => {
     if (!form.type || !form.clientName || !form.value || !selDate) 
       return alert('Preencha todos os campos obrigatórios');
 
-    const key = fmtDateKey(selDate);
     const newApt: Appointment = {
       id: editingAppointment?.id || Date.now(),
       times: selTimes,
       type: form.type,
-      clientName: form.clientName,
+      client_name: form.clientName,   // Map form field to snake_case
       value: parseCurr(form.value),
       observations: form.observations,
-      date: selDate.toISOString()
+      date: selDate.toISOString(),
+      created_by: currentUser         // Map to snake_case
     };
 
-    if (editingAppointment) {
-      // Editar agendamento existente
-      setApts(p => ({
-        ...p,
-        [key]: (p[key] || []).map(a => a.id === editingAppointment.id ? newApt : a)
-      }));
-    } else {
-      // Criar novo agendamento
-      setApts(p => ({ ...p, [key]: [...(p[key] || []), newApt] }));
+
+    try {
+      if (editingAppointment) {
+        // Atualizar no Supabase
+        const { error } = await supabase
+          .from('appointments')
+          .update(newApt)
+          .eq('id', newApt.id);
+        
+        if (error) throw error;
+      } else {
+        // Inserir no Supabase
+        const { error } = await supabase
+          .from('appointments')
+          .insert([newApt]);
+        
+        if (error) throw error;
+      }
+      
+      // Recarregar dados
+      await loadAppointments();
+      closeModal();
+    } catch (error) {
+      console.error('Erro ao salvar agendamento:', error);
+      alert('Erro ao salvar agendamento');
     }
-    
-    closeModal();
   };
 
   // Calcular receitas
@@ -142,7 +191,7 @@ const SistemaAgendamento = () => {
     setEditingAppointment(appointment);
     setForm({
       type: appointment.type,
-      clientName: appointment.clientName,
+      clientName: appointment.client_name,  // Map snake_case to form field
       value: appointment.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
       observations: appointment.observations
     });
@@ -151,74 +200,120 @@ const SistemaAgendamento = () => {
   };
 
   // Excluir agendamento
-  const handleDeleteAppointment = (appointmentId: number) => {
-    if (!selDate) return;
+  const handleDeleteAppointment = async (appointmentId: number) => {
+    if (!selDate || !window.confirm('Tem certeza que deseja excluir este agendamento?')) return;
     
-    const key = fmtDateKey(selDate);
-    setApts(prev => ({
-      ...prev,
-      [key]: (prev[key] || []).filter(a => a.id !== appointmentId)
-    }));
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', appointmentId);
+      
+      if (error) throw error;
+      
+      // Recarregar dados
+      await loadAppointments();
+    } catch (error) {
+      console.error('Erro ao excluir agendamento:', error);
+      alert('Erro ao excluir agendamento');
+    }
   };
+
+  // Efeito para carregar agendamentos quando autenticado
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadAppointments();
+    }
+  }, [isAuthenticated]);
 
   // Agendamentos da data selecionada
   const selDateAppts = selDate ? apts[fmtDateKey(selDate)] || [] : [];
   const rev = calcRev();
 
+  if (!isAuthenticated) {
+    return <Login onLogin={(username) => {
+      setIsAuthenticated(true);
+      setCurrentUser(username);
+    }} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Clínica de Depilação</h1>
-          <p className="text-gray-600">Sistema de Agendamento</p>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 space-y-4 sm:space-y-0">
+          <div className="text-center sm:text-left">
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">Clínica de Depilação</h1>
+            <p className="text-gray-600">Sistema de Agendamento</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-center sm:text-right">
+            <span className="text-gray-700 font-medium mb-2 sm:mb-0">Usuário: {currentUser}</span>
+            <button
+              onClick={() => setIsAuthenticated(false)}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+            >
+              Sair
+            </button>
+          </div>
         </div>
 
-        <Calendar 
-          currentMonth={currentMonth}
-          onPrevMonth={() => navMonth(-1)}
-          onNextMonth={() => navMonth(1)}
-          selectedDate={selDate}
-          onDateSelect={setSelDate}
-          appointments={apts}
-        />
 
-        <div className="flex justify-center mb-4">
-          <button onClick={() => setShowRev(!showRev)} 
-            className="flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold shadow-md">
-            <DollarSign size={20} />
-            {showRev ? 'Ocultar Receitas' : 'Ver Receitas'}
-          </button>
-        </div>
-
-        <RevenueReport 
-          show={showRev}
-          revenueFilter={revFilter}
-          onFilterChange={setRevFilter}
-          revenueData={rev}
-        />
-
-        {selDate && (
-          <TimeSlots 
-            date={selDate}
-            timeSlots={timeSlots}
-            selectedTimes={selTimes}
-            appointments={apts}
-            onTimeToggle={toggleTime}
-            onNewAppointment={openNewApt}
-          />
+        {isLoading && (
+          <div className="text-center py-8">
+            <p className="text-gray-600">Carregando agendamentos...</p>
+          </div>
         )}
 
-        {selDate && selDateAppts.length > 0 && (
-          <AppointmentList 
-            date={selDate}
-            appointments={selDateAppts}
-            onEdit={handleEditAppointment}
-            onDelete={handleDeleteAppointment}
-          />
+        {!isLoading && (
+          <>
+            <Calendar 
+              currentMonth={currentMonth}
+              onPrevMonth={() => navMonth(-1)}
+              onNextMonth={() => navMonth(1)}
+              selectedDate={selDate}
+              onDateSelect={setSelDate}
+              appointments={apts}
+            />
+
+            <div className="flex justify-center mb-4">
+              <button onClick={() => setShowRev(!showRev)} 
+                className="flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold shadow-md transition-colors">
+                <DollarSign size={20} />
+                {showRev ? 'Ocultar Receitas' : 'Ver Receitas'}
+              </button>
+            </div>
+
+            <RevenueReport 
+              show={showRev}
+              revenueFilter={revFilter}
+              onFilterChange={setRevFilter}
+              revenueData={rev}
+            />
+
+            {selDate && (
+              <TimeSlots 
+                date={selDate}
+                timeSlots={timeSlots}
+                selectedTimes={selTimes}
+                appointments={apts}
+                onTimeToggle={toggleTime}
+                onNewAppointment={openNewApt}
+              />
+            )}
+
+            {selDate && selDateAppts.length > 0 && (
+              <AppointmentList 
+                date={selDate}
+                appointments={selDateAppts}
+                onEdit={handleEditAppointment}
+                onDelete={handleDeleteAppointment}
+              />
+            )}
+          </>
         )}
 
         {showModal && (
-          <div className="fixed inset-0 bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-bold">
@@ -286,19 +381,22 @@ const SistemaAgendamento = () => {
                   <p className="text-sm text-gray-600">
                     <strong>Data:</strong> {selDate?.toLocaleDateString('pt-BR')}
                   </p>
+                  <p className="text-sm text-gray-600">
+                    <strong>Agendado por:</strong> {currentUser}
+                  </p>
                 </div>
               </div>
               
               <div className="flex gap-3 mt-6">
                 <button 
                   onClick={closeModal}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button 
                   onClick={confirmApt}
-                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 font-semibold"
+                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 font-semibold transition-colors"
                 >
                   {editingAppointment ? "Atualizar" : "Confirmar"}
                 </button>
@@ -311,4 +409,4 @@ const SistemaAgendamento = () => {
   );
 };
 
-export default SistemaAgendamento;
+export default App;
