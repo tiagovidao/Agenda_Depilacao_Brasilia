@@ -1,3 +1,4 @@
+// frontend/src/types/appointment.ts
 export interface Appointment {
   id: number;
   times: string[];
@@ -6,5 +7,5 @@ export interface Appointment {
   value: number;
   observations: string;
   date: string;
-  created_by: string; // Novo campo
+  user_id: string; 
 }

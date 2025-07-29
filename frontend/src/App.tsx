@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Calendar from "./components/Calendar";
 import TimeSlots from "./components/TimeSlots";
 import AppointmentList from "./components/AppointmentList";
@@ -7,6 +7,8 @@ import AppointmentModal from "./components/AppointmentModal";
 import { type Appointment } from "./types/appointment";
 import Login from "./components/Login";
 import { supabase } from "./lib/supabase";
+import Register from "./components/Register";
+import type { User } from "./types/user";
 
 const App = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -17,8 +19,9 @@ const App = () => {
   const [form, setForm] = useState({ type: "", clientName: "", value: "", observations: "" });
   const [revFilter, setRevFilter] = useState({ period: "Dia" });
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState("");
+  const[isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [showRegister, setShowRegister] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [currentView, setCurrentView] = useState<'appointments' | 'revenue'>('appointments');
@@ -64,49 +67,51 @@ const App = () => {
     setEditingAppointment(null);
   };
 
-  const loadAppointments = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('*')
-        .order('date', { ascending: true });
-      
-      if (error) throw error;
+  const loadAppointments = useCallback(async () => {
+  if (!currentUser) return;
+  
+  setIsLoading(true);
+  try {
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('date', { ascending: true });
+    
+    if (error) throw error;
 
-      const aptsByDate: Record<string, Appointment[]> = {};
-      data.forEach(appointment => {
-        const dateKey = appointment.date.split('T')[0];
-        if (!aptsByDate[dateKey]) {
-          aptsByDate[dateKey] = [];
-        }
-        aptsByDate[dateKey].push(appointment);
-      });
-      
-      setApts(aptsByDate);
-    } catch (error) {
-      console.error('Erro ao carregar agendamentos:', error);
-      alert('Erro ao carregar agendamentos');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const aptsByDate: Record<string, Appointment[]> = {};
+    data.forEach(appointment => {
+      const dateKey = appointment.date.split('T')[0];
+      if (!aptsByDate[dateKey]) {
+        aptsByDate[dateKey] = [];
+      }
+      aptsByDate[dateKey].push(appointment);
+    });
+    
+    setApts(aptsByDate);
+  } catch (error) {
+    console.error('Erro ao carregar agendamentos:', error);
+    alert('Erro ao carregar agendamentos');
+  } finally {
+    setIsLoading(false);
+  }
+}, [currentUser]);
 
   const confirmApt = async () => {
-    if (!form.type || !form.clientName || !form.value || !selDate) 
+    if (!form.type || !form.clientName || !form.value || !selDate || !currentUser)
       return alert('Preencha todos os campos obrigatórios');
 
-    setIsSaving(true); // Inicia o loading
+    setIsSaving(true);
 
-    const newApt: Appointment = {
-      id: editingAppointment?.id || Date.now(),
+    const newApt = {
       times: selTimes,
       type: form.type,
       client_name: form.clientName,
       value: parseCurr(form.value),
       observations: form.observations,
       date: selDate.toISOString(),
-      created_by: currentUser
+      user_id: currentUser.id // SEMPRE VINCULAR AO USUÁRIO LOGADO
     };
 
     try {
@@ -114,24 +119,25 @@ const App = () => {
         const { error } = await supabase
           .from('appointments')
           .update(newApt)
-          .eq('id', newApt.id);
-        
+          .eq('id', editingAppointment.id)
+          .eq('user_id', currentUser.id); // SEGURANÇA: só editar se for do usuário
+
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('appointments')
           .insert([newApt]);
-        
+
         if (error) throw error;
       }
-      
+
       await loadAppointments();
       closeModal();
     } catch (error) {
       console.error('Erro ao salvar agendamento:', error);
       alert('Erro ao salvar agendamento');
     } finally {
-      setIsSaving(false); // Finaliza o loading
+      setIsSaving(false);
     }
   };
 
@@ -194,52 +200,66 @@ const App = () => {
   };
 
   const handleDeleteAppointment = async (appointmentId: number) => {
-    if (!selDate || !window.confirm('Tem certeza que deseja excluir este agendamento?')) return;
+  if (!selDate || !currentUser || !window.confirm('Tem certeza que deseja excluir este agendamento?')) return;
+  
+  try {
+    const { error } = await supabase
+      .from('appointments')
+      .delete()
+      .eq('id', appointmentId)
+      .eq('user_id', currentUser.id); // SEGURANÇA: só deletar se for do usuário
     
-    try {
-      const { error } = await supabase
-        .from('appointments')
-        .delete()
-        .eq('id', appointmentId);
-      
-      if (error) throw error;
-      
-      await loadAppointments();
-    } catch (error) {
-      console.error('Erro ao excluir agendamento:', error);
-      alert('Erro ao excluir agendamento');
-    }
-  };
+    if (error) throw error;
+    
+    await loadAppointments();
+  } catch (error) {
+    console.error('Erro ao excluir agendamento:', error);
+    alert('Erro ao excluir agendamento');
+  }
+};
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && currentUser) {
       loadAppointments();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, currentUser, loadAppointments]); 
 
   const selDateAppts = selDate ? apts[fmtDateKey(selDate)] || [] : [];
   const rev = calcRev();
 
   if (!isAuthenticated) {
-    return <Login onLogin={(username) => {
-      setIsAuthenticated(true);
-      setCurrentUser(username);
-    }} />;
+  if (showRegister) {
+    return (
+      <Register 
+        onRegisterSuccess={() => {
+          setShowRegister(false);
+          alert('Conta criada com sucesso! Faça login para continuar.');
+        }}
+        onBackToLogin={() => setShowRegister(false)}
+      />
+    );
   }
+
+  return (
+    <Login 
+      onLogin={(user) => {
+        setIsAuthenticated(true);
+        setCurrentUser(user);
+      }} 
+      onGoToRegister={() => setShowRegister(true)}
+    />
+  );
+}
 
    return (
     <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 space-y-4 sm:space-y-0">
-          <div className="text-center sm:text-left">
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">Clínica de Depilação</h1>
-            <p className="text-gray-600">Sistema de Agendamento</p>
-          </div>
-
-          <div className="text-center sm:text-right">
-            <span className="text-gray-700 font-medium">Usuário: {currentUser}</span>
-          </div>
-        </div>
+       <div className="max-w-6xl mx-auto">
+         <div className="text-center sm:text-left">
+           <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">
+             Minha Agenda - {currentUser?.name}
+           </h1>
+           <p className="text-gray-600">Sistema de Agendamento Pessoal</p>
+         </div>
 
         {isLoading && (
           <div className="text-center py-8">
@@ -315,26 +335,29 @@ const App = () => {
           </>
         )}
 
-        <AppointmentModal 
-          showModal={showModal}
-          closeModal={closeModal}
-          form={form}
-          setForm={setForm}
-          selTimes={selTimes}
-          setSelTimes={setSelTimes}
-          selDate={selDate}
-          currentUser={currentUser}
-          editingAppointment={editingAppointment}
-          confirmApt={confirmApt}
-          fmtCurr={fmtCurr}
-          appointments={apts}
-          timeSlots={timeSlots}
-          isSaving={isSaving}
-        />
+         <AppointmentModal
+           showModal={showModal}
+           closeModal={closeModal}
+           form={form}
+           setForm={setForm}
+           selTimes={selTimes}
+           setSelTimes={setSelTimes}
+           selDate={selDate}
+           currentUser={currentUser?.name || ''} // MUDANÇA: usar currentUser.name
+           editingAppointment={editingAppointment}
+           confirmApt={confirmApt}
+           fmtCurr={fmtCurr}
+           appointments={apts}
+           timeSlots={timeSlots}
+           isSaving={isSaving}
+         />
 
          <div className="flex justify-center mt-12">
            <button
-             onClick={() => setIsAuthenticated(false)}
+             onClick={() => {
+               setIsAuthenticated(false);
+               setCurrentUser(null);
+             }}
              className="w-full sm:w-auto px-8 py-4 text-lg bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors font-bold max-w-xs sm:max-w-none"
            >
              Sair

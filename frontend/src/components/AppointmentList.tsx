@@ -114,12 +114,6 @@ const AppointmentList = ({
                     <p className="font-semibold text-gray-800">{a.times.join(', ')}</p>
                   </div>
                 </div>
-                
-                <div className="mt-3">
-                  <label className="text-xs sm:text-sm font-medium text-gray-500">Agendado por</label>
-                  <p className="font-semibold text-gray-800">{a.created_by}</p>
-                </div>
-
                 {a.observations && (
                   <div className="mt-3 pt-3 border-t border-gray-100">
                     <label className="text-xs sm:text-sm font-medium text-gray-500">Observações</label>
