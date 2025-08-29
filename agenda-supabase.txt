@@ -1,0 +1,85 @@
+1º Script
+
+-- Tabela appointments
+CREATE TABLE appointments (
+  id BIGSERIAL PRIMARY KEY,
+  times TEXT[] NOT NULL,
+  type TEXT NOT NULL,
+  client_name TEXT NOT NULL,
+  value NUMERIC(10,2) NOT NULL,
+  observations TEXT,
+  date TEXT NOT NULL,
+  created_by TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Inserir usuários permitidos
+INSERT INTO users (username, password) 
+VALUES 
+  ('elainevidao', '19212523'),
+  ('biancavidao', '19212523')
+ON CONFLICT (username) DO NOTHING;
+
+
+=========================================================================
+
+2º script
+
+-- Atualizar tabela de usuários
+DROP TABLE IF EXISTS users;
+
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  username TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Atualizar tabela appointments (remover created_by)
+ALTER TABLE appointments DROP COLUMN IF EXISTS created_by;
+
+-- Adicionar user_id para referenciar o usuário que criou o agendamento
+ALTER TABLE appointments ADD COLUMN user_id UUID REFERENCES users(id);
+
+-- Criar índice para melhor performance nas consultas por usuário
+CREATE INDEX IF NOT EXISTS idx_appointments_user_id ON appointments(user_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_user_date ON appointments(user_id, date);
+
+
+=========================================================================
+3º script
+-- SOLUÇÃO: Recriar a foreign key com CASCADE
+
+-- 1. Remover a constraint existente
+ALTER TABLE appointments DROP CONSTRAINT IF EXISTS appointments_user_id_fkey;
+
+-- 2. Recriar com CASCADE (quando deletar usuário, deleta os agendamentos)
+ALTER TABLE appointments 
+ADD CONSTRAINT appointments_user_id_fkey 
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+-- ALTERNATIVA: Se quiser SET NULL ao invés de CASCADE
+-- ALTER TABLE appointments 
+-- ADD CONSTRAINT appointments_user_id_fkey 
+-- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+
+-- Agora você conseguirá deletar usuários (e seus agendamentos serão deletados automaticamente)
+
+
+-- SOLUÇÃO 1: DESABILITAR RLS (Mais simples para começar)
+ALTER TABLE appointments DISABLE ROW LEVEL SECURITY;
+
+-- Remover todas as políticas existentes
+DROP POLICY IF EXISTS "Users can only see their own appointments" ON appointments;
+DROP POLICY IF EXISTS "Users can only create their own appointments" ON appointments;
+DROP POLICY IF EXISTS "Users can only update their own appointments" ON appointments;
+DROP POLICY IF EXISTS "Users can only delete their own appointments" ON appointments;
+

@@ -1,4 +1,3 @@
-// frontend/src/components/Register.tsx
 import { useState } from "react";
 import { User, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { supabase } from "../lib/supabase";

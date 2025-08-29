@@ -1,4 +1,4 @@
-import { X, Calendar, Clock, User, DollarSign, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Calendar, Clock, User, DollarSign, FileText, ChevronDown, ChevronUp, Phone } from "lucide-react";
 import { type Appointment } from "../types/appointment";
 import { useState } from "react";
 
@@ -10,12 +10,14 @@ interface AppointmentModalProps {
     clientName: string;
     value: string;
     observations: string;
+    phone: string;
   };
   setForm: React.Dispatch<React.SetStateAction<{
     type: string;
     clientName: string;
     value: string;
     observations: string;
+    phone: string;
   }>>;
   selTimes: string[];
   setSelTimes: React.Dispatch<React.SetStateAction<string[]>>;
@@ -49,16 +51,31 @@ const AppointmentModal = ({
 
   if (!showModal) return null;
 
+  const formatPhone = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    
+    const limited = cleaned.slice(0, 11);
+    
+    if (limited.length <= 2) {
+      return `(${limited}`;
+    } else if (limited.length <= 7) {
+      return `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+    } else {
+      return `(${limited.slice(0, 2)}) ${limited.slice(2, 7)}-${limited.slice(7)}`;
+    }
+  };
+
   const handleInputChange = (field: keyof typeof form, value: string) => {
     if (field === 'value') {
       value = fmtCurr(value);
+    } else if (field === 'phone') {
+      value = formatPhone(value);
     }
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
   const fmtDateKey = (d: Date) => d.toISOString().split('T')[0];
   
-  // Verifica se um horário está ocupado por OUTRO agendamento
   const isBookedByOther = (time: string) => {
     if (!selDate) return false;
     const dateAppts = appointments[fmtDateKey(selDate)] || [];
@@ -68,7 +85,7 @@ const AppointmentModal = ({
   };
 
   const toggleTime = (time: string) => {
-    if (isBookedByOther(time)) return; // Não permite selecionar horários ocupados por outros
+    if (isBookedByOther(time)) return; 
     
     setSelTimes(prev => 
       prev.includes(time) 
@@ -95,7 +112,6 @@ const AppointmentModal = ({
     }
   };
 
-  // Informações do agendamento que ocupa o horário
   const getOccupiedInfo = (time: string) => {
     if (!selDate) return null;
     const dateAppts = appointments[fmtDateKey(selDate)] || [];
@@ -121,7 +137,6 @@ const AppointmentModal = ({
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Data */}
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
               <Calendar size={18} className="text-purple-600" />
@@ -130,7 +145,6 @@ const AppointmentModal = ({
             <p className="text-gray-800">{selDate?.toLocaleDateString('pt-BR')}</p>
           </div>
 
-          {/* Seção de Horários */}
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -146,7 +160,6 @@ const AppointmentModal = ({
               </button>
             </div>
 
-            {/* Horários selecionados (sempre visível) */}
             <div className="mb-3">
               <p className="text-sm text-gray-600 mb-1">Horários selecionados:</p>
               <div className="flex flex-wrap gap-2">
@@ -162,7 +175,6 @@ const AppointmentModal = ({
               </div>
             </div>
 
-            {/* Editor de horários (expansível) */}
             {showTimeEditor && (
               <div className="border-t border-gray-200 pt-4">
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 mb-4">
@@ -189,7 +201,6 @@ const AppointmentModal = ({
                   })}
                 </div>
 
-                {/* Legenda */}
                 <div className="flex flex-wrap gap-4 text-xs text-gray-600">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-gray-100 border border-gray-300 rounded"></div>
@@ -208,7 +219,6 @@ const AppointmentModal = ({
             )}
           </div>
 
-          {/* Tipo de Serviço */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Tipo de Serviço *
@@ -224,7 +234,6 @@ const AppointmentModal = ({
             </select>
           </div>
 
-          {/* Nome do Cliente */}
           <div>
             <label className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
               <User size={16} className="text-purple-600" />
@@ -239,11 +248,28 @@ const AppointmentModal = ({
             />
           </div>
 
+          {/* Telefone */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <Phone size={16} className="text-purple-600" />
+              Telefone
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={form.phone}
+              onChange={(e) => handleInputChange('phone', e.target.value)}
+              placeholder="(XX) XXXXX-XXXX"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              maxLength={15}
+            />
+          </div>
+
           {/* Valor */}
           <div>
             <label className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
               <DollarSign size={16} className="text-purple-600" />
-              Valor *
+              Valor
             </label>
             <input
               type="text"

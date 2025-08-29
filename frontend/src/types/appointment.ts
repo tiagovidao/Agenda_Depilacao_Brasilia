@@ -1,4 +1,3 @@
-// frontend/src/types/appointment.ts
 export interface Appointment {
   id: number;
   times: string[];
@@ -8,4 +7,5 @@ export interface Appointment {
   observations: string;
   date: string;
   user_id: string; 
+  phone?: string; 
 }

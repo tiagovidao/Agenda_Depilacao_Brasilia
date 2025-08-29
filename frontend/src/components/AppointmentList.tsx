@@ -98,6 +98,9 @@ const AppointmentList = ({
                   <div>
                     <label className="text-xs sm:text-sm font-medium text-gray-500">Cliente</label>
                     <p className="font-semibold text-gray-800 truncate">{a.client_name}</p>
+                    {a.phone && (
+                      <p className="text-xs text-gray-500 mt-1">{a.phone}</p>
+                    )}
                   </div>
                   <div>
                     <label className="text-xs sm:text-sm font-medium text-gray-500">Tipo</label>
@@ -107,7 +110,9 @@ const AppointmentList = ({
                   </div>
                   <div>
                     <label className="text-xs sm:text-sm font-medium text-gray-500">Valor</label>
-                    <p className="font-semibold text-gray-800">R$ {a.value.toFixed(2)}</p>
+                    <p className="font-semibold text-gray-800">
+                      {a.value > 0 ? `R$ ${a.value.toFixed(2)}` : 'Não informado'}
+                    </p>
                   </div>
                   <div>
                     <label className="text-xs sm:text-sm font-medium text-gray-500">Horários</label>

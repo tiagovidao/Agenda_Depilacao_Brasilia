@@ -16,8 +16,22 @@ const App = () => {
   const [apts, setApts] = useState<Record<string, Appointment[]>>({});
   const [showModal, setShowModal] = useState(false);
   const [selTimes, setSelTimes] = useState<string[]>([]);
-  const [form, setForm] = useState({ type: "", clientName: "", value: "", observations: "" });
-  const [revFilter, setRevFilter] = useState({ period: "Dia" });
+  const [form, setForm] = useState({ 
+    type: "", 
+    clientName: "", 
+    value: "", 
+    observations: "",
+    phone: "" 
+  });
+  const [revFilter, setRevFilter] = useState<{ 
+    period: string;
+    customStartDate?: string;
+    customEndDate?: string;
+  }>({ 
+    period: "Dia",
+    customStartDate: undefined,
+    customEndDate: undefined 
+  });
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const[isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -43,6 +57,12 @@ const App = () => {
 
   const fmtDateKey = (d: Date) => d.toISOString().split('T')[0];
 
+  // Função helper para criar datas sem problemas de timezone
+  const createDateFromString = (dateString: string) => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   const toggleTime = (t: string) => {
     if (selDate) {
       const key = fmtDateKey(selDate);
@@ -62,7 +82,7 @@ const App = () => {
   const closeModal = () => {
     if (isSaving) return; // Previne fechar durante o salvamento
     setShowModal(false);
-    setForm({ type: "", clientName: "", value: "", observations: "" });
+    setForm({ type: "", clientName: "", value: "", observations: "", phone: "" });
     setSelTimes([]);
     setEditingAppointment(null);
   };
@@ -99,8 +119,9 @@ const App = () => {
 }, [currentUser]);
 
   const confirmApt = async () => {
-    if (!form.type || !form.clientName || !form.value || !selDate || !currentUser)
-      return alert('Preencha todos os campos obrigatórios');
+    // Validação atualizada - valor não é mais obrigatório
+    if (!form.type || !form.clientName || !selDate || !currentUser)
+      return alert('Preencha todos os campos obrigatórios (Tipo e Nome do Cliente)');
 
     setIsSaving(true);
 
@@ -108,8 +129,9 @@ const App = () => {
       times: selTimes,
       type: form.type,
       client_name: form.clientName,
-      value: parseCurr(form.value),
+      value: form.value ? parseCurr(form.value) : 0, // Se não tiver valor, define como 0
       observations: form.observations,
+      phone: form.phone,
       date: selDate.toISOString(),
       user_id: currentUser.id // SEMPRE VINCULAR AO USUÁRIO LOGADO
     };
@@ -151,7 +173,8 @@ const App = () => {
       const apt = new Date(aptDate.getFullYear(), aptDate.getMonth(), aptDate.getDate());
       
       switch(revFilter.period) {
-        case "Dia": return apt.getTime() === ref.getTime();
+        case "Dia": 
+          return apt.getTime() === ref.getTime();
         case "Semana": {
           const start = new Date(ref);
           start.setDate(ref.getDate() - ref.getDay());
@@ -162,7 +185,17 @@ const App = () => {
         case "Mês": 
           return aptDate.getMonth() === refDate.getMonth() && 
                  aptDate.getFullYear() === refDate.getFullYear();
-        default: return false;
+        case "Personalizado": {
+          if (!revFilter.customStartDate || !revFilter.customEndDate) return false;
+          
+          const startDate = createDateFromString(revFilter.customStartDate);
+          const endDate = createDateFromString(revFilter.customEndDate);
+          
+          // Comparar apenas as datas (ano, mês, dia) sem horário
+          return apt >= startDate && apt <= endDate;
+        }
+        default: 
+          return false;
       }
     });
     
@@ -187,8 +220,9 @@ const App = () => {
     setForm({
       type: appointment.type,
       clientName: appointment.client_name,
-      value: appointment.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-      observations: appointment.observations
+      value: appointment.value ? appointment.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '',
+      observations: appointment.observations,
+      phone: appointment.phone || ''
     });
     setSelTimes([...appointment.times]);
     
