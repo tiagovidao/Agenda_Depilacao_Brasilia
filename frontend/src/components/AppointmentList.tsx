@@ -20,9 +20,13 @@ const AppointmentList = ({
 
   if (!appointments.length) return null;
 
-  const filteredAppointments = appointments.filter(app => 
-    filter === "Todos" || app.type === filter
-  );
+  const filteredAppointments = appointments
+    .filter(app => filter === "Todos" || app.type === filter)
+    .sort((a, b) => {
+      const timeA = a.times[0] || "00:00";
+      const timeB = b.times[0] || "00:00";
+      return timeA.localeCompare(timeB);
+    });
 
   const toggleVisibility = () => {
     setIsVisible(!isVisible);
