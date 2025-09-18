@@ -16,7 +16,7 @@ const AppointmentList = ({
   onDelete
 }: AppointmentListProps) => {
   const [filter, setFilter] = useState<"Todos" | "Cera" | "Laser">("Todos");
-  const [isVisible, setIsVisible] = useState(true); // Estado para controlar a visibilidade
+  const [isVisible, setIsVisible] = useState(true);
 
   if (!appointments.length) return null;
 

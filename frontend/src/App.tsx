@@ -10,7 +10,6 @@ import Register from "./components/Register";
 import { type Appointment } from "./types/appointment";
 import { type User } from "./types/user";
 
-
 const App = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selDate, setSelDate] = useState<Date | null>(null);
@@ -218,14 +217,14 @@ const App = () => {
   };
 
   const handleDeleteAppointment = async (appointmentId: number) => {
-    if (!selDate || !currentUser || !window.confirm('Tem certeza que deseja excluir este agendamento?')) return;
+    if (!currentUser) return;
 
     try {
       const { error } = await supabase
         .from('appointments')
         .delete()
         .eq('id', appointmentId)
-        .eq('user_id', currentUser.id); 
+        .eq('user_id', currentUser.id);
 
       if (error) throw error;
 
@@ -359,7 +358,7 @@ const App = () => {
           selTimes={selTimes}
           setSelTimes={setSelTimes}
           selDate={selDate}
-          currentUser={currentUser?.name || ''} 
+          currentUser={currentUser?.name || ''}
           editingAppointment={editingAppointment}
           confirmApt={confirmApt}
           fmtCurr={fmtCurr}
