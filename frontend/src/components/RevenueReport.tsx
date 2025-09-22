@@ -1,4 +1,4 @@
-import { DollarSign, Calendar } from "lucide-react";
+import { DollarSign, Calendar, Users, Zap, Droplet } from "lucide-react";
 
 interface RevenueReportProps {
   revenueFilter: { 
@@ -11,7 +11,14 @@ interface RevenueReportProps {
     customStartDate?: string;
     customEndDate?: string;
   }) => void;
-  revenueData: { total: number; laser: number; cera: number; count: number };
+  revenueData: { 
+    total: number; 
+    laser: number; 
+    cera: number; 
+    count: number;
+    laserCount?: number;
+    ceraCount?: number;
+  };
 }
 
 const RevenueReport = ({ 
@@ -59,7 +66,7 @@ const RevenueReport = ({
     <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-6 mb-6">
       <div className="flex items-center gap-2 mb-4">
         <DollarSign className="text-blue-500" size={24} />
-        <h2 className="text-2xl font-bold">Receitas</h2>
+        <h2 className="text-2xl font-bold">Receitas e Atendimentos</h2>
       </div>
       
       <div className="mb-6 space-y-4">
@@ -112,18 +119,43 @@ const RevenueReport = ({
         )}
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { title: "Total Geral", value: revenueData.total, bg: "from-gray-600 to-gray-800", count: revenueData.count },
-          { title: "Laser", value: revenueData.laser, bg: "from-pink-400 to-pink-600" },
-          { title: "Cera", value: revenueData.cera, bg: "from-purple-500 to-purple-700" }
-        ].map((item, i) => (
-          <div key={i} className={`bg-gradient-to-r ${item.bg} rounded-lg p-4 text-white shadow-md`}>
-            <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
-            <p className="text-2xl font-bold">R$ {item.value.toFixed(2)}</p>
-            {item.count !== undefined && <p className="text-sm opacity-90">{item.count} atendimentos</p>}
+      {/* Cards de Receitas */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-gradient-to-r from-gray-600 to-gray-800 rounded-lg p-4 text-white shadow-md">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold">Total Geral</h3>
+            <DollarSign size={20} className="opacity-80" />
           </div>
-        ))}
+          <p className="text-2xl font-bold">R$ {revenueData.total.toFixed(2)}</p>
+          <div className="flex items-center gap-1 mt-2 text-sm opacity-90">
+            <Users size={14} />
+            <span>{revenueData.count} atendimento{revenueData.count !== 1 ? 's' : ''}</span>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-pink-400 to-pink-600 rounded-lg p-4 text-white shadow-md">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold">Laser</h3>
+            <Zap size={20} className="opacity-80" />
+          </div>
+          <p className="text-2xl font-bold">R$ {revenueData.laser.toFixed(2)}</p>
+          <div className="flex items-center gap-1 mt-2 text-sm opacity-90">
+            <Users size={14} />
+            <span>{revenueData.laserCount || 0} atendimento{revenueData.laserCount !== 1 ? 's' : ''}</span>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-purple-500 to-purple-700 rounded-lg p-4 text-white shadow-md">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold">Cera</h3>
+            <Droplet size={20} className="opacity-80" />
+          </div>
+          <p className="text-2xl font-bold">R$ {revenueData.cera.toFixed(2)}</p>
+          <div className="flex items-center gap-1 mt-2 text-sm opacity-90">
+            <Users size={14} />
+            <span>{revenueData.ceraCount || 0} atendimento{revenueData.ceraCount !== 1 ? 's' : ''}</span>
+          </div>
+        </div>
       </div>
       
       {revenueFilter.period === 'Personalizado' && revenueFilter.customStartDate && revenueFilter.customEndDate && revenueData.count === 0 && (

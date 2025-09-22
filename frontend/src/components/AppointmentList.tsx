@@ -1,3 +1,4 @@
+// frontend/src/components/AppointmentList.tsx
 import { FileText, Edit, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { type Appointment } from "../types/appointment";
 import { useState } from "react";
@@ -86,11 +87,7 @@ const AppointmentList = ({
                     <Edit size={18} />
                   </button>
                   <button 
-                    onClick={() => {
-                      if (window.confirm('Tem certeza que deseja excluir este agendamento?')) {
-                        onDelete(a.id);
-                      }
-                    }}
+                    onClick={() => onDelete(a.id)}
                     className="p-1.5 sm:p-2 text-pink-600 hover:bg-pink-50 rounded-full transition-colors"
                     title="Excluir"
                   >
